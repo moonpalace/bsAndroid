@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bs_screenOn">true</string>
+    <string name="bs_titleBar">true</string>
+    <string name="bs_fullScreen">true</string>
+    <string name="bs_orientation">false</string>
+    <string name="bs_openGL">false</string>
+    <string name="bs_webviewControl">false</string>
+</resources>

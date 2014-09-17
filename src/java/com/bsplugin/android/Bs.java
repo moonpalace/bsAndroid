@@ -1,39 +1,31 @@
 package com.bsplugin.android;
 
-import android.animation.Animator;
-import android.animation.TimeInterpolator;
-import android.animation.ValueAnimator;
+import android.animation.*;
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.DialogInterface;
-import android.content.Intent;
+import android.content.*;
 import android.content.pm.ActivityInfo;
 import android.content.res.Resources;
+import android.database.Cursor;
+import android.database.sqlite.*;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.*;
 import android.util.*;
 import android.view.*;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.TableRow;
-import android.widget.TextView;
+import android.webkit.*;
+import android.widget.*;
 
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 
-public class Bs{
+
+public class BS{
     static private ExecutorService _workers = Executors.newFixedThreadPool(8);
     {
         StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder().permitAll().build());
@@ -116,15 +108,27 @@ public class Bs{
         for( int i = 1, j = $v.size() ; i < j ; i++ ) sb.append($sep).append($v.get(i).toString());
         return sb.toString();
     }
+    static public String tmpl( final String $v, String[] $data ){
+        StringBuilder sb = new StringBuilder( $v.length() + 100 ).append($v);
+        for( int i = 0, j = $data.length ; i < j ; i += 2 ){
+            String k = "@" + $data[i] + "@";
+            do{
+                int l = sb.indexOf(k);
+                if( l == -1 ) break;
+                sb.replace( l, l + k.length(), $data[i + 1] );
+            }while(true);
+        }
+        return sb.toString();
+    }
     static public String tmpl( final String $v, final HashMap<String,String> $data ){
         StringBuilder sb = new StringBuilder( $v.length() + 100 ).append($v);
         for( Map.Entry<String, String> map : $data.entrySet() ){
-            String k = map.getKey();
-            int i = sb.indexOf( "@" + k + "@" );
-            if( i > -1 ){
-                String v = map.getValue();
-                sb.replace( i, i + v.length(), $data.get(k) );
-            }
+            String k = "@" + map.getKey() + "@";
+            do{
+                int l = sb.indexOf(k);
+                if( l == -1 ) break;
+                sb.replace( l, l + k.length(), map.getValue() );
+            }while(true);
         }
         return sb.toString();
     }
@@ -154,14 +158,96 @@ public class Bs{
         //endregion
     //endregion
 
-    //region View
+    //region SQLite
 
-        private abstract class S{
+    public class Sqlite extends SQLiteOpenHelper{
+        private String d;
+        private SQLiteDatabase w;
+        private SQLiteDatabase r;
+        public Sqlite( Context $context, String $database, int $ver ){
+            super( $context, $database, null, $ver );
+            d = $database;
+            w = this.getWritableDatabase();
+            r = this.getReadableDatabase();
+        }
+        @Override
+        public void onCreate( SQLiteDatabase db ){}
+        @Override
+        public void onUpgrade( SQLiteDatabase db, int oldVersion, int newVersion ){}
+        public Sqlite table( String $name, String...arg ){
+            Cursor c = w.rawQuery( "select DISTINCT tbl_name from sqlite_master where tbl_name = '" + $name + "'", null );
+            if( c != null && c.getCount() > 0){
+                c.close();
+                return this;
+            }
+            c.close();
+            StringBuilder sb = new StringBuilder(150).append("CREATE TABLE ").append($name).append(" (");
+            int i = 0, j = arg.length;
+            while( i < j ){
+                sb.append(arg[i++]).append(" ").append(arg[i++]);
+                if( i != j ) sb.append(",");
+            }
+            sb.append(")");
+            exec(sb.toString());
+            return this;
+        }
+        public int exec( String $query, String...arg ){
+            w.execSQL( arg.length == 0 ? $query : tmpl( $query, arg ) );
+            Cursor c = r.rawQuery( "SELECT changes()", null );
+            return c != null && c.getCount() > 0 && c.moveToFirst() ? c.getInt(0) : 0;
+        }
+        public int exec( String $query, HashMap<String, String> arg ){
+            w.execSQL( arg == null ? $query : tmpl( $query, arg ) );
+            Cursor c = r.rawQuery( "SELECT changes()", null );
+            return c != null && c.getCount() > 0 && c.moveToFirst() ? c.getInt(0) : 0;
+        }
+        public Cursor select( String $query, String...arg ){
+            Cursor c = r.rawQuery( arg.length == 0 ? $query : tmpl( $query, arg ), null );
+            return c != null && c.getCount() > 0 && c.moveToFirst() ? c : null;
+        }
+        public Cursor select( String $query, HashMap<String, String> arg ){
+            Cursor c = r.rawQuery( arg == null ? $query : tmpl( $query, arg ), null );
+            return c != null && c.getCount() > 0 && c.moveToFirst() ? c : null;
+        }
+    }
+        //region Sqlite
+    private HashMap<String, Sqlite> _sqlites = new HashMap<String, Sqlite>();
+    public Sqlite Sqlite( String $db ){
+        if( !_sqlites.containsKey($db) ) _sqlites.put( $db, new Sqlite( _act, $db, 1 ) );
+        return _sqlites.get($db);
+    }
+        //endregion
+
+    //endregion
+
+    //region View
+    static public abstract class AdapterCursor extends BaseAdapter{
+        private Cursor _c;
+        public AdapterCursor( Cursor $c ){_c = $c;}
+        public int getCount(){return _c == null ? 0 : _c.getCount();}
+        public Object getItem( int $i ){return null;}
+        public long getItemId( int $i ){return $i;}
+        public View getView( int $i, View $v, ViewGroup $g ){
+            if( $v == null ) $v = view();
+            _c.moveToPosition($i);
+            data( _c, $i, $v, $g );
+            return $v;
+        }
+
+        public void update( Cursor $c ){
+            _c = $c;
+            notifyDataSetChanged();
+        }
+        public abstract View view();
+        public abstract void data( Cursor $c, int $i, View $v, ViewGroup $g );
+    }
+
+    private abstract class S{
         public void s( final bsView $v0, final Object $v1 ){}
         public Object g( final bsView $v0 ){return null;}
     }
-        private interface N{View r();}
-        public class bsView{
+    private interface N{View r();}
+    public class bsView{
         public float[][] motionPoint = null;
         public MotionEvent motionEvent = null;
         public String motionType;
@@ -194,7 +280,7 @@ public class Bs{
                             int j = $e.getPointerCount();
                             if( 0 < j && j < 5 ){
                                 float w = 1, h = 1;
-                                Bs bs = Bs.this;
+                                BS bs = BS.this;
                                 if( bs._isVirtual ){
                                     w = bs.virtual_widthRate;
                                     h = bs.virtual_heightRate;
@@ -211,7 +297,7 @@ public class Bs{
                         try {
                             Thread.sleep(15);
                         }catch(Exception e){
-                            Bs.log(e.toString());
+                            BS.log(e.toString());
                         }
                         return true;
                     }
@@ -247,7 +333,7 @@ public class Bs{
             if( arg.length == 1 && _viewS.containsKey(arg[0]) ) return _viewS.get(arg[0]).g(this);
             {
                 _viewArgs.put(_viewArgID, arg);
-                Bs bs = Bs.this;
+                BS bs = BS.this;
                 Message r = Message.obtain(bs.handler);
                 r.arg1 = _viewArgID++;
                 r.obj = this;
@@ -331,20 +417,24 @@ public class Bs{
     static public final String E_move = "E_move";
         //endregion
         //region Const View
-    static public final String V_ROOT = "ROOT";
-    static public final String V_span = "span";
-    static public final String V_scaleX = "scaleX";
-    static public final String V_scaleY = "scaleY";
-    static public final String V_background = "background";
-    static public final String V_margin = "margin";
-    static public final String V_layout = "layout";
-    static public final String V_visible = "visible";
-    static public final String V_id = "id";
-    static public final String V_tag = "tag";
-    static public final String V_data = "data";
-    static public final String V_parent = "<";
-    static public final String V_focus = "focus";
-    static public final String V_next = "next";
+    static public final String V_ROOT = "V_ROOT";
+    static public final String V_span = "V_span";
+    static public final String V_scaleX = "V_scaleX";
+    static public final String V_scaleY = "V_scaleY";
+    static public final String V_background = "V_background";
+    static public final String V_margin = "V_margin";
+    static public final String V_alpha = "V_alpha";
+    static public final String V_layout = "V_layout";
+    static public final String V_visible = "V_visible";
+    static public final String V_id = "V_id";
+    static public final String V_tag = "V_tag";
+    static public final String V_param = "V_param";
+    static public final String V_parent = "V_<";
+    static public final String V_focus = "V_focus";
+    static public final String V_next = "V_next";
+    static public final String V_adapter = "V_adapter";
+    static public final String V_adapterView = "V_adapterView";
+
         //endregion
         //region Const Animation
     static private final String A_animation = "A_animation";
@@ -429,9 +519,11 @@ public class Bs{
     {
         _viewNew = new HashMap<String, N>();
         _viewS = new HashMap<String, S>();
+
             //region CreateView
-        _viewNew.put( "Webview", new N(){public View r(){return new WebView( Bs.this._act );}});
+        _viewNew.put( "Webview", new N(){public View r(){return new WebView( BS.this._act );}});
             //endregion
+
             //region Event
         _viewS.put( E_click, new S(){
             public Object g( final bsView $b ){return $b.p.get(E_click);}
@@ -498,7 +590,7 @@ public class Bs{
             @SuppressLint("NewApi")
             public void s( final bsView $b, final Object $v ){
                 $b.p.put("background",$v);
-                if( $v instanceof String ) $b.v.setBackgroundColor(Bs.str2color((String)$v));
+                if( $v instanceof String ) $b.v.setBackgroundColor(BS.str2color((String) $v));
                 else if( $v instanceof Drawable ) $b.v.setBackground((Drawable)$v);
             }
         });
@@ -512,6 +604,10 @@ public class Bs{
                 $b.v.setLayoutParams(param);
             }
         });
+        _viewS.put( V_alpha, new S(){
+            public Object g( final bsView $b ){return $b.v.getAlpha();}
+            public void s( final bsView $b, final Object $v ){$b.v.setAlpha((Float)$v);}
+        } );
         _viewS.put( V_layout, new S(){
             public Object g( final bsView $b ){return $b.p.containsKey("layout") ? $b.p.get("layout") : _viewLayout;}
             public void s( final bsView $b, final Object $v ){
@@ -549,6 +645,10 @@ public class Bs{
             public Object g( final bsView $b ){return $b.v.getTag();}
             public void s( final bsView $b, final Object $v ){$b.v.setTag($v);}
         });
+        _viewS.put( V_param, new S(){
+            public Object g( final bsView $b ){return $b.p.clone();}
+            public void s( final bsView $b, final Object $v ){$b.p.putAll((HashMap<String, Object>)$v);}
+        });
             //endregion
             //region Action
         _viewS.put( V_focus, new S(){
@@ -563,46 +663,64 @@ public class Bs{
             public void s( final bsView $b, final Object $v ){
                 if( $v instanceof String ){
                     String v = (String)$v;
-                    if( v.equals("ROOT") ) Bs.this.contents($b.v);
-                    else ((ViewGroup)Bs.this.View((String)$v).v).addView($b.v);
-                }else if( $v instanceof Integer ) ((ViewGroup)Bs.this.View((Integer)$v).v).addView($b.v);
-                else if( $v instanceof View ) ((ViewGroup)Bs.this.View((View)$v).v).addView($b.v);
+                    if( v.equals(V_ROOT) ) BS.this.contents($b.v);
+                    else ((ViewGroup)BS.this.View((String)$v).v).addView($b.v);
+                }else if( $v instanceof Integer ) ((ViewGroup)BS.this.View((Integer)$v).v).addView($b.v);
+                else if( $v instanceof View ) ((ViewGroup)BS.this.View((View)$v).v).addView($b.v);
             }
         } );
         _viewS.put( V_next, new S(){public void s( final bsView $b, final Object $v ){((Runnable)$v).run();}});
+        _viewS.put( V_adapterView, new S() {
+            public void s( final bsView $b, final Object $v ){
+                $b.p.put( V_adapterView, $v );
+            }
+        });
+        _viewS.put( V_adapter, new S(){
+            public Object g( final bsView $b ){return ((AdapterView)$b.v).getAdapter();}
+            public void s( final bsView $b, final Object $v ){
+                AdapterView v = (AdapterView)$b.v;
+                if( $v instanceof Cursor ){
+                    Cursor c = (Cursor)$v;
+                    String[] t0 = c.getColumnNames();
+                    int[] t1 = new int[t0.length];
+                    for( int i = 0, j = t1.length ; i < j ; i++ ) t1[i] = Rid(t0[i]);
+                    v.setAdapter( new SimpleCursorAdapter( _act, (Integer)$b.p.get(V_adapterView), c, t0, t1, 1 ) );
+                }else v.setAdapter((Adapter)$v);
+            }
+        } );
             //endregion
             //region Animation
             //region attribute
         _viewS.put( A_alpha, new S(){public void s( final bsView $b, final Object $v ){
-            if( $v instanceof Float ) $b.ani().alpha((Float)$v);
+            if( $v instanceof Float ) $b.ani().alpha((Float) $v);
             else{
                 float[] v = (float[])$v;
                 $b.ani().alphaBy(v[0]).alpha(v[1]);
             }
         }});
         _viewS.put( A_rotation, new S(){public void s( final bsView $b, final Object $v ){
-            if( $v instanceof Float ) $b.ani().rotation((Float)$v);
+            if( $v instanceof Float ) $b.ani().rotation((Float) $v);
             else{
                 float[] v = (float[])$v;
                 $b.ani().rotationBy(v[0]).rotation(v[1]);
             }
         }});
         _viewS.put( A_rotationX, new S(){public void s( final bsView $b, final Object $v ){
-            if( $v instanceof Float ) $b.ani().rotationX((Float)$v);
+            if( $v instanceof Float ) $b.ani().rotationX((Float) $v);
             else{
                 float[] v = (float[])$v;
                 $b.ani().rotationXBy(v[0]).rotationX(v[1]);
             }
         }});
         _viewS.put( A_rotationY, new S(){public void s( final bsView $b, final Object $v ){
-            if( $v instanceof Float ) $b.ani().rotationY((Float)$v);
+            if( $v instanceof Float ) $b.ani().rotationY((Float) $v);
             else{
                 float[] v = (float[])$v;
                 $b.ani().rotationYBy(v[0]).rotationY(v[1]);
             }
         }});
         _viewS.put( A_scaleX, new S(){public void s( final bsView $b, final Object $v ){
-            if( $v instanceof Float ) $b.ani().scaleX((Float)$v);
+            if( $v instanceof Float ) $b.ani().scaleX((Float) $v);
             else{
                 float[] v = (float[])$v;
                 $b.ani().scaleXBy(v[0]).scaleX(v[1]);
@@ -659,7 +777,7 @@ public class Bs{
             //endregion
             //region event
         _viewS.put( A_canceled, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_cancelListener, (Runnable)$v );}});
-        _viewS.put( A_repeated, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_repeatListener, (Runnable)$v );}});
+        _viewS.put( A_repeated, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener(A_repeatListener, (Runnable) $v);}});
         if( Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN ){
             _viewS.put( A_end, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_endListener, (Runnable)$v );}});
             _viewS.put( A_started, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_startListener, (Runnable)$v );}});
@@ -698,7 +816,7 @@ public class Bs{
         }});
         _viewS.put( WV_apiKey, new S(){public void s( final bsView $b, final Object $v ){$b.p.put("apiKey", $v);}});
         _viewS.put( WV_api, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).addJavascriptInterface($v, $b.p.containsKey("apiKey") ? (String) $b.p.get("apiKey") : "Bs");}});
-        _viewS.put( WV_isJS, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setJavaScriptEnabled((Boolean)$v);}});
+        _viewS.put( WV_isJS, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setJavaScriptEnabled((Boolean) $v);}});
         _viewS.put( WV_file, new S() {
             public void s(final bsView $b, final Object $v) {
                 WebSettings s = ((WebView) $b.v).getSettings();
@@ -739,6 +857,8 @@ public class Bs{
 
     //endregion
 
+
+
     //region Instance
         //region R
     static private final int _RtypeLayout = 1;
@@ -755,7 +875,7 @@ public class Bs{
     }
     public View Rlayout( String $id ){return Rlayout(_res.getIdentifier( $id, "layout", _packageName));}
     public View Rlayout( int $id ){return _inflater.inflate( $id, null);}
-
+    public int Rid( String $id ){return _res.getIdentifier( $id, "id", _packageName);}
     public String Rstring( String $id ){
         int i = _res.getIdentifier( $id, "string", _packageName);
         return i == 0 ? "" : Rstring(i);
@@ -819,7 +939,7 @@ public class Bs{
         log( "bs.onPostCreate" );
     }
         //endregion
-    public Bs( Activity $activity, Bundle $savedInstanceState ){
+    public BS(Activity $activity, Bundle $savedInstanceState){
         log( "bs.onCreate" );
         _act = $activity;
         _win = _act.getWindow();
@@ -830,7 +950,7 @@ public class Bs{
         isAlive = Boolean.TRUE;
         _screenOn = Rstring("bs_screenOn").equals("true") ? Boolean.TRUE : Boolean.FALSE;
         if( Rstring("bs_fullScreen").equals("true") ) _win.setFlags( WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN );
-        if( Rstring("bs_titleBar").equals("true") ) _act.requestWindowFeature( Window.FEATURE_NO_TITLE );
+        if( Rstring("bs_titleBar").equals("false") ) _act.requestWindowFeature(Window.FEATURE_NO_TITLE);
         String t0 = Rstring("bs_orientation");
         if( !t0.equals("") && !t0.equals("false") ){
             int i = -1;

@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">BSProject</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+
     <string name="bs_screenOn">true</string>
     <string name="bs_titleBar">false</string>
     <string name="bs_fullScreen">true</string>
     <string name="bs_orientation">false</string>
     <string name="bs_openGL">false</string>
     <string name="bs_webviewControl">false</string>
+
+    <string name="str_list_query">
+        CREATE TABLE IF NOT EXISTS samples(
+            rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL
+        )
+    </string>
 </resources>

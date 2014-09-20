@@ -4,33 +4,44 @@ import android.app.Activity;
 import android.content.Intent;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 public class BSProjectActivity extends Activity {
 
-    final private String _db= "samples_list";
+    final private String _db= "samples";
+    private String[] list;
+    private ArrayAdapter<String> adapter;
 
     private BS bs;
     private BS.AdapterCursor _adapter;
 
-//    private void init(){
+    private void init(){
+        list= getResources().getStringArray(R.array.list_str);
+        adapter= new ArrayAdapter<String>(this, R.layout.list_row, R.id.list_text, list);
+        ((ListView)findViewById(R.id.listview)).setAdapter(adapter);
+//        bs.Sqlite(_db).exec(bs.Rstring(R.string.str_list_query_create));
 //        Cursor c= bs.Sqlite(_db).select(bs.Rstring(R.string.str_list_query));
+//
 //        if(_adapter == null){
 //            _adapter= new BS.AdapterCursor(c){
 //                public View view(Cursor c, int index){
-//                    View v= bs.Rlayout(R.layout.list_row);
-//                    String[] str= {c.getString(0), c.getString(1)};
-//                    bs.View(R.id.list_text, v).S();
-//                    return v;
+//                    return bs.Rlayout(R.layout.list_row);
 //                }
 //
 //                public void data(Cursor c, int index, View v, ViewGroup g){
-//
+//                    ((TextView)v.findViewById(R.id.list_text)).setText(list[index]);
 //                }
 //            };
+////            bs.View(R.id.listview).A(BS.V_adapter, _adapter);
+//            ((ListView)findViewById(R.id.listview)).setAdapter(_adapter);
 //        } else _adapter.update(c);
-//    }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,9 +49,7 @@ public class BSProjectActivity extends Activity {
 
         bs = new BS( this, savedInstanceState );
         bs.View(R.layout.activity_bsproject).S(BS.V_parent, BS.V_ROOT);
-
-//        init();
-
+        init();
     }
 
     @Override

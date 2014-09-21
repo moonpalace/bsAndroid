@@ -17,7 +17,5 @@
             name TEXT NOT NULL
         )
     </string>
-    <string name="str_list_query">
-        select rowid, name from samples
-    </string>
+    <string name="str_list_query">select name from samples</string>
 </resources>

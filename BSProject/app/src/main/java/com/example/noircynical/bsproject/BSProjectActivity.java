@@ -23,24 +23,26 @@ public class BSProjectActivity extends Activity {
 
     private void init(){
         list= getResources().getStringArray(R.array.list_str);
-        adapter= new ArrayAdapter<String>(this, R.layout.list_row, R.id.list_text, list);
-        ((ListView)findViewById(R.id.listview)).setAdapter(adapter);
-//        bs.Sqlite(_db).exec(bs.Rstring(R.string.str_list_query_create));
-//        Cursor c= bs.Sqlite(_db).select(bs.Rstring(R.string.str_list_query));
-//
-//        if(_adapter == null){
-//            _adapter= new BS.AdapterCursor(c){
-//                public View view(Cursor c, int index){
-//                    return bs.Rlayout(R.layout.list_row);
-//                }
-//
-//                public void data(Cursor c, int index, View v, ViewGroup g){
-//                    ((TextView)v.findViewById(R.id.list_text)).setText(list[index]);
-//                }
-//            };
-////            bs.View(R.id.listview).A(BS.V_adapter, _adapter);
-//            ((ListView)findViewById(R.id.listview)).setAdapter(_adapter);
-//        } else _adapter.update(c);
+        bs.Sqlite(_db).exec(bs.Rstring(R.string.str_list_query_create));
+        for(int i=0; i<list.length; i++){
+            String query= "insert into samples(name)values('"+list[i]+"')";
+            bs.Sqlite(_db).exec(query);
+        }
+        Cursor c= bs.Sqlite(_db).select(bs.Rstring(R.string.str_list_query));
+        if(_adapter == null){
+            Log.d("BSProject", "adapter create");
+            _adapter= new BS.AdapterCursor(c){
+                public View view(Cursor c, int index){
+                    Log.d("BSProject", "view create");
+                    return bs.Rlayout(R.layout.list_row);
+                }
+
+                public void data(Cursor c, int index, View v, ViewGroup g){
+                    ((TextView)v.findViewById(R.id.list_text)).setText(list[index]);
+                }
+            };
+            bs.View(R.id.listview).A(BS.V_adapter, _adapter);
+        } else _adapter.update(c);
     }
 
     @Override

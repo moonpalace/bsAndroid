@@ -11,10 +11,11 @@
     <string name="bs_openGL">false</string>
     <string name="bs_webviewControl">false</string>
 
-    <string name="str_list_query">
+    <string name="str_list_query_create">
         CREATE TABLE IF NOT EXISTS samples(
             rowid INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL
         )
     </string>
+    <string name="str_list_query">select name from samples</string>
 </resources>

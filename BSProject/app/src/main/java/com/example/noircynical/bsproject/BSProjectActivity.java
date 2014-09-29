@@ -33,7 +33,7 @@ public class BSProjectActivity extends Activity {
         }
         Cursor c= bs.Sqlite(_db).select(bs.Rstring(R.string.str_list_query));
         if(_adapter == null){
-            Log.d("BSProject", "adapter create");
+//            Log.d("BSProject", "adapter create");
             _adapter= new BS.AdapterCursor(c, 0, null, null){
                 public View view(Cursor c, int index, int rowid, HashMap<String, Object> $data){
                     return bs.Rlayout(R.layout.list_row);

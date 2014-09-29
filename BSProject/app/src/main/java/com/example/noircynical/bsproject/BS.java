@@ -1,3 +1,8 @@
+/* bsAndroid v0.0.1
+ * Copyright (c) 2013 by ProjectBS Committe and contributors. 
+ * http://www.bsplugin.com All rights reserved.
+ * Licensed under the BSD license. See http://opensource.org/licenses/BSD-3-Clause
+ */
 package com.example.noircynical.bsproject;
 
 import android.animation.*;
@@ -24,6 +29,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class BS{
+
+//region const
+static public final String VALUE_TOGGLE = "VALUE_TOGGLE";
 
 static private ExecutorService _workers = Executors.newFixedThreadPool(8);
 {
@@ -221,28 +229,56 @@ public Sqlite Sqlite( String $db ){
 
 //region View
 static public abstract class AdapterCursor extends BaseAdapter{
+
     private Cursor _c;
-    public AdapterCursor( Cursor $c ){_c = $c;}
+	private HashMap<String, Object> _data = new HashMap<String, Object>();
+	private int[] _rowid;
+
+    public AdapterCursor( Cursor $c, int $rowid, Object...arg ){
+	    init( $c, $rowid );
+	    int i = 0, j = arg.length;
+	    while( i < j ) _data.put( (String)arg[i++], arg[i++] );
+    }
+	public AdapterCursor( Cursor $c, int $rowid, HashMap<String, Object> arg ){
+		init( $c, $rowid );
+		_data.putAll(arg);
+	}
+	private void init( Cursor $c, int $rowid ){
+		if( $c != null ){
+			_c = $c;
+			if( $rowid > -1 ){
+				int i = 0, j = _c.getCount();
+				_rowid = new int[j];
+				while( i < j ){
+					_c.moveToPosition( i );
+					_rowid[i++] = _c.getInt( $rowid );
+				}
+			}
+		}
+	}
+
     public int getCount(){return _c == null ? 0 : _c.getCount();}
     public Object getItem( int $i ){return null;}
     public long getItemId( int $i ){return $i;}
     public View getView( int $idx, View $v, ViewGroup $g ){
         _c.moveToPosition($idx);
-	    if( $v == null ) $v = view( _c, $idx);
-        data( _c, $idx, $v, $g );
+	    if( $v == null ) $v = view( _c, $idx, _rowid[$idx], _data );
+        data( _c, $idx, $v, $g, _rowid[$idx], _data );
         return $v;
     }
-
-    public void update( Cursor $c ){
-        _c = $c;
+    public void update( Cursor $c, int $rowid ){
+	    init( $c, $rowid );
         notifyDataSetChanged();
     }
-    public abstract View view( Cursor $c, int $idx );
-    public abstract void data( Cursor $c, int $i, View $v, ViewGroup $g );
+	public int rowid( int $idx ){return _rowid[$idx];}
+	public Object data( String $key ){return _data.get($key);}
+	public void data( String $key, Object $val ){_data.put( $key, $val );}
+    public abstract View view( Cursor $c, int $idx, int $rowid, HashMap<String, Object> $data );
+    public abstract void data( Cursor $c, int $idx, View $v, ViewGroup $g, int $rowid, HashMap<String, Object> $data );
 }
 
 private abstract class S{
-    public void s( final bsView $v0, final Object $v1 ){}
+    public Object s( final bsView $v0, final Object $v1 ){return $v1;}
     public Object g( final bsView $v0 ){return null;}
 }
 private interface N{View r();}
@@ -383,46 +419,63 @@ private Handler handler = new Handler(){
 private HashMap<View, bsView> _viewCache = new HashMap<View, bsView>();
 private LinkedList<bsView> _viewPool = new LinkedList<bsView>();
 private void viewPool( bsView $view ){_viewPool.push($view);}
-private bsView view( View $v ){
-    if( _viewCache.containsKey($v) ) return _viewCache.get($v);
-    else{
-        bsView t0 = _viewPool.size() > 0 ? _viewPool.pop() : new bsView();
-        _viewCache.put( $v, t0.init($v) );
-        return t0;
-    }
+
+private bsView view( View $v, boolean $isCache ){
+	if( $isCache ){
+		if( _viewCache.containsKey( $v ) ) return _viewCache.get( $v );
+		else{
+			bsView t0 = _viewPool.size() > 0 ? _viewPool.pop() : new bsView();
+			_viewCache.put( $v, t0.init( $v ) );
+			return t0;
+		}
+	}else return new bsView().init($v);
 }
-public bsView View( View $view ){return view($view);}
-public bsView View( int $id ){return view( Rtype($id) == _RtypeLayout ? Rlayout($id) : _act.findViewById($id) );}
-public bsView View( int $id, View $finder ){return view( Rtype($id) == _RtypeLayout ? Rlayout($id) : $finder.findViewById($id) );}
-public bsView View( String $id ) {
-    if( _viewNew.containsKey($id) ) return view(_viewNew.get($id).r());
-    return _viewIDs.containsKey($id) ? view(_act.findViewById(_viewIDs.get($id))) : null;
+public bsView View( View $view ){return View( $view, true );}
+public bsView View( View $view, boolean $isCache ){return view( $view, $isCache );}
+public bsView View( int $id ){return View( $id, true );}
+public bsView View( int $id, boolean $isCache ){
+	return view( Rtype($id) == _RtypeLayout ? Rlayout($id) : _act.findViewById($id), $isCache );
 }
-public bsView View( String $id, View $finder ){
-	if( _viewNew.containsKey($id) ) return view(_viewNew.get($id).r());
-	return _viewIDs.containsKey($id) ? view($finder.findViewById(_viewIDs.get($id))) : null;
+public bsView View( String $id ){return View( $id, true );}
+public bsView View( String $id, boolean $isCache ){
+	return _viewNew.containsKey($id) ? view( _viewNew.get($id).r(), $isCache ) : _viewIDs.containsKey($id) ? view( _act.findViewById(_viewIDs.get($id)), $isCache ) : null;
 }
-public bsView View( int $id, Object $finder ){
-	if( $finder instanceof bsView ) return View( $id, ((bsView)$finder).v );
-	else if( $finder instanceof View ) return View( $id, (View)$finder );
-	else if( $finder instanceof Integer ) return View( $id, View((Integer)$finder) );
-	else if( $finder instanceof String ) return View( $id, View((String)$finder) );
+
+public bsView View( String $id, View $finder ){return View( $id, $finder, true );}
+public bsView View( String $id, View $finder, boolean $isCache ){
+	return _viewNew.containsKey($id) ? view( _viewNew.get($id).r(), $isCache ) : _viewIDs.containsKey($id) ? view( $finder.findViewById(_viewIDs.get($id)), $isCache ) : null;
+}
+public bsView View( int $id, View $finder ){return View( $id, $finder, true );}
+public bsView View( int $id, View $finder, boolean $isCache ){
+	return view( Rtype($id) == _RtypeLayout ? Rlayout($id) : $finder.findViewById($id), $isCache );
+}
+
+public bsView View( String $id, Object $finder ){return View( $id, $finder, true );}
+public bsView View( String $id, Object $finder, boolean $isCache ){
+	if( $finder instanceof bsView ) return View( $id, ((bsView)$finder).v, $isCache );
+	else if( $finder instanceof View ) return View( $id, (View)$finder, $isCache );
+	else if( $finder instanceof Integer ) return View( $id, View((Integer)$finder), $isCache );
+	else if( $finder instanceof String ) return View( $id, View((String)$finder), $isCache );
 	return View($id);
 }
-public bsView View( String $id, Object $finder ){
-	if( $finder instanceof bsView ) return View( $id, ((bsView)$finder).v );
-	else if( $finder instanceof View ) return View( $id, (View)$finder );
-	else if( $finder instanceof Integer ) return View( $id, View((Integer)$finder) );
-	else if( $finder instanceof String ) return View( $id, View((String)$finder) );
-	return View($id);
+public bsView View( int $id, Object $finder ){return View( $id, $finder, true );}
+public bsView View( int $id, Object $finder, boolean $isCache ){
+	if( $finder instanceof bsView ) return View( $id, ((bsView)$finder).v, $isCache );
+	else if( $finder instanceof View ) return View( $id, (View)$finder, $isCache );
+	else if( $finder instanceof Integer ) return View( $id, View((Integer)$finder), $isCache );
+	else if( $finder instanceof String ) return View( $id, View((String)$finder), $isCache );
+	return View( $id, $isCache );
 }
+
 private void contents( View $view ){_act.setContentView($view);}
     //endregion
-
     //region Const Event
 static private final String E_bsTouch = "E_bsTouch";
 static private final String E_bsKey = "E_bsKey";
 
+static public final String E_itemClick = "E_itemClick";
+static public final String E_itemLongClick = "E_itemLongClick";
+static public final String E_itemSelected = "E_itemSelected";
 static public final String E_checkedChange = "E_checkedChange";
 static public final String E_click = "E_click";
 static public final String E_drag = "E_drag";
@@ -453,8 +506,8 @@ static public final String V_parent = "V_<";
 static public final String V_focus = "V_focus";
 static public final String V_next = "V_next";
 static public final String V_adapter = "V_adapter";
-static public final String V_adapterView = "V_adapterView";
 static public final String V_view = "V_view";
+static public final String V_children = "V_children";
 static public final String V_this = "V_this";
     //endregion
     //region Const Animation
@@ -506,9 +559,14 @@ static public final String WV_encoding = "WV_encoding";
 static public final String WV_header = "WV_header";
     //endregion
     //region Const TextView
+static public final String TV_text = "TV_text";
 static public final String TV_textScaleX = "TV_textScaleX";
 static public final String TV_lineSpacing = "TV_lineSpacing";
     //endregion
+    //region Const ImageView
+static public final String IV_image = "IV_image";
+	//endregion
+static public final String CB_checked = "CB_checked";
     //region _view Fields
 static private int _viewID = 0, _viewArgID = 0;
 static private HashMap<String, Integer> _viewIDs = new HashMap<String, Integer>();
@@ -521,6 +579,7 @@ static private HashMap<String, S> _viewS;
 static private HashMap<String, N> _viewNew;
 static private WebViewClient _viewWebViewClient = new WebViewClient(){
     public void onLoadResource( WebView $v, String $url ){super.onLoadResource( $v, $url );}
+
     public boolean shouldOverrideUrlLoading( WebView $v, String $url ){
         $v.loadUrl($url);
         return true;
@@ -546,59 +605,71 @@ static private WebChromeClient _viewWebChromeClient = new WebChromeClient(){
         //endregion
 
         //region Event
+	_viewS.put( E_itemClick, new S(){
+		public Object g( final bsView $b ){return $b.p.get(E_itemClick);}
+		public Object s( final bsView $b, final Object $v ){((AdapterView)$b.v).setOnItemClickListener( ( AdapterView.OnItemClickListener ) $v );$b.p.put( E_itemClick, $v );return $v;}
+	});
+	_viewS.put( E_itemLongClick, new S(){
+		public Object g( final bsView $b ){return $b.p.get(E_itemLongClick);}
+		public Object s( final bsView $b, final Object $v ){((AdapterView)$b.v).setOnItemLongClickListener((AdapterView.OnItemLongClickListener)$v);$b.p.put( E_itemLongClick, $v );return $v;}
+	});
+	_viewS.put( E_itemSelected, new S(){
+		public Object g( final bsView $b ){return $b.p.get(E_itemSelected);}
+		public Object s( final bsView $b, final Object $v ){((AdapterView)$b.v).setOnItemSelectedListener((AdapterView.OnItemSelectedListener)$v);$b.p.put( E_itemSelected, $v );return $v;}
+	});
 	_viewS.put( E_checkedChange, new S(){
 		public Object g( final bsView $b ){return $b.p.get(E_checkedChange);}
-		public void s( final bsView $b, final Object $v ){((CompoundButton)$b.v).setOnCheckedChangeListener((CompoundButton.OnCheckedChangeListener)$v);$b.p.put( E_checkedChange, $v );}
+		public Object s( final bsView $b, final Object $v ){((CompoundButton)$b.v).setOnCheckedChangeListener((CompoundButton.OnCheckedChangeListener)$v);$b.p.put( E_checkedChange, $v );return $v;}
 	});
     _viewS.put( E_click, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_click);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnClickListener((View.OnClickListener)$v);$b.p.put( E_click, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnClickListener((View.OnClickListener)$v);$b.p.put( E_click, $v );return $v;}
     });
     _viewS.put( E_drag, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_drag);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnDragListener((View.OnDragListener)$v);$b.p.put( E_drag, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnDragListener((View.OnDragListener)$v);$b.p.put( E_drag, $v );return $v;}
     });
     _viewS.put( E_focusChange, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_focusChange);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnFocusChangeListener((View.OnFocusChangeListener)$v);$b.p.put( E_focusChange, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnFocusChangeListener((View.OnFocusChangeListener)$v);$b.p.put( E_focusChange, $v );return $v;}
     });
     _viewS.put( E_genericMotion, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_genericMotion);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnGenericMotionListener((View.OnGenericMotionListener)$v);$b.p.put( E_genericMotion, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnGenericMotionListener((View.OnGenericMotionListener)$v);$b.p.put( E_genericMotion, $v );return $v;}
     });
     _viewS.put( E_hover, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_hover);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnHoverListener((View.OnHoverListener)$v);$b.p.put( E_hover, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnHoverListener((View.OnHoverListener)$v);$b.p.put( E_hover, $v );return $v;}
     });
     _viewS.put( E_key, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_key);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnKeyListener((View.OnKeyListener)$v);$b.p.put( E_key, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnKeyListener((View.OnKeyListener)$v);$b.p.put( E_key, $v );return $v;}
     });
     _viewS.put( E_longClick, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_longClick);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnLongClickListener((View.OnLongClickListener)$v);$b.p.put( E_longClick, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnLongClickListener((View.OnLongClickListener)$v);$b.p.put( E_longClick, $v );return $v;}
     });
     _viewS.put( E_touch, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_touch);}
-        public void s( final bsView $b, final Object $v ){$b.v.setOnTouchListener((View.OnTouchListener)$v);$b.p.put( E_touch, $v );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setOnTouchListener((View.OnTouchListener)$v);$b.p.put( E_touch, $v );return $v;}
     });
     _viewS.put( E_down, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_down);}
-        public void s( final bsView $b, final Object $v ){$b.touch( E_down, (Runnable)$v );}
+        public Object s( final bsView $b, final Object $v ){$b.touch( E_down, (Runnable)$v );return $v;}
     });
     _viewS.put( E_up, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_up);}
-        public void s( final bsView $b, final Object $v ){$b.touch( E_up, (Runnable)$v );}
+        public Object s( final bsView $b, final Object $v ){$b.touch( E_up, (Runnable)$v );return $v;}
     });
     _viewS.put( E_move, new S(){
         public Object g( final bsView $b ){return $b.p.get(E_move);}
-        public void s( final bsView $b, final Object $v ){$b.touch( E_move, (Runnable)$v );}
+        public Object s( final bsView $b, final Object $v ){$b.touch( E_move, (Runnable)$v );return $v;}
     });
         //endregion
         //region Attribute
     _viewS.put( V_view, new S(){
 	    public Object g( final bsView $b ){return $b.v;}
-	    public void s( final bsView $b, final Object $v ){
+	    public Object s( final bsView $b, final Object $v ){
 		    if( $v instanceof String ){
 			    String v = (String)$v;
 			    $b.v = _viewNew.containsKey(v) ? _viewNew.get(v).r() : _viewIDs.containsKey(v) ? _act.findViewById(_viewIDs.get(v)) : null;
@@ -606,49 +677,53 @@ static private WebChromeClient _viewWebChromeClient = new WebChromeClient(){
 			    int v = (Integer)$v;
 			    $b.v = Rtype(v) == _RtypeLayout ? Rlayout(v) : _act.findViewById(v);
 		    }else if( $v instanceof View ) $b.v = (View)$v;
+		    return $v;
 	    }
     });
     _viewS.put( V_this, new S(){public Object g( final bsView $b ){return $b;}});
     _viewS.put( V_span, new S(){
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             TableRow.LayoutParams params = (TableRow.LayoutParams) $b.v.getLayoutParams();
             params.span = (Integer)$v;
+	        return $v;
         }
     });
     _viewS.put( V_scaleX, new S(){
         public Object g( final bsView $b ){return $b.v.getScaleX();}
-        public void s( final bsView $b, final Object $v ){$b.v.setScaleX((Float)$v);}
+        public Object s( final bsView $b, final Object $v ){$b.v.setScaleX((Float)$v);return $v;}
     });
     _viewS.put( V_scaleY, new S(){
         public Object g( final bsView $b ){return $b.v.getScaleY();}
-        public void s( final bsView $b, final Object $v ){$b.v.setScaleY((Float)$v);}
+        public Object s( final bsView $b, final Object $v ){$b.v.setScaleY((Float)$v);return $v;}
     });
     _viewS.put( V_background, new S(){
         public Object g( final bsView $b ){return $b.p.get("background");}
         @SuppressLint("NewApi")
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             $b.p.put("background",$v);
             if( $v instanceof String ) $b.v.setBackgroundColor(BS.str2color((String) $v));
             else if( $v instanceof Drawable ) $b.v.setBackground((Drawable)$v);
+	        return $v;
         }
     });
     _viewS.put( V_margin, new S(){
         public Object g( final bsView $b ){return $b.p.containsKey("margin") ? $b.p.get("margin") : _viewMargin;}
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             int[] v = (int[])$v;
             ViewGroup.MarginLayoutParams param = (ViewGroup.MarginLayoutParams) $b.v.getLayoutParams();
             param.setMargins( v[0], v[1], v[2], v[3] );
             $b.p.put( "margin", v );
             $b.v.setLayoutParams(param);
+	        return $v;
         }
     });
     _viewS.put( V_alpha, new S(){
         public Object g( final bsView $b ){return $b.v.getAlpha();}
-        public void s( final bsView $b, final Object $v ){$b.v.setAlpha((Float)$v);}
+        public Object s( final bsView $b, final Object $v ){$b.v.setAlpha((Float)$v);return $v;}
     } );
     _viewS.put( V_layout, new S(){
         public Object g( final bsView $b ){return $b.p.containsKey("layout") ? $b.p.get("layout") : _viewLayout;}
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             ViewGroup.MarginLayoutParams param = (ViewGroup.MarginLayoutParams) $b.v.getLayoutParams();
             int[] v = (int[])$v;
             $b.p.put( "layout", v );
@@ -659,252 +734,288 @@ static private WebChromeClient _viewWebChromeClient = new WebChromeClient(){
                 param.setMargins( v[0], v[1], v[2], v[3] );
             }
             $b.v.setLayoutParams(param);
+	        return $v;
         }
     } );
     _viewS.put( V_visible, new S(){
         public Object g( final bsView $b ){return $b.v.getVisibility();}
-        public void s( final bsView $b, final Object $v ){$b.v.setVisibility( (Boolean)$v ? View.VISIBLE : View.INVISIBLE );}
+        public Object s( final bsView $b, final Object $v ){$b.v.setVisibility( (Boolean)$v ? View.VISIBLE : View.INVISIBLE );return $v;}
     });
     _viewS.put( V_id, new S(){
         public Object g( final bsView $b ){return $b.v.getId();}
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             String v = (String)$v;
             if( _viewIDs.containsKey(v) ){
                 log( "Existed ID ::" + v );
-                return;
+                return $v;
             }
             int id = _viewID;
             _viewIDs.put( v, id );
             $b.v.setId(id);
             _viewID++;
+	        return $v;
         }
     });
     _viewS.put( V_tag, new S(){
         public Object g( final bsView $b ){return $b.v.getTag();}
-        public void s( final bsView $b, final Object $v ){$b.v.setTag($v);}
+        public Object s( final bsView $b, final Object $v ){$b.v.setTag($v);return $v;}
     });
     _viewS.put( V_param, new S(){
         public Object g( final bsView $b ){return $b.p.clone();}
-        public void s( final bsView $b, final Object $v ){$b.p.putAll((HashMap<String, Object>)$v);}
+        public Object s( final bsView $b, final Object $v ){$b.p.putAll((HashMap<String, Object>)$v);return $v;}
     });
         //endregion
         //region Action
     _viewS.put( V_focus, new S(){
-        public void s( final bsView $b, final Object $v ){
-            $b.v.setFocusable(true);
-            $b.v.requestFocus();
-            $b.v.setFocusableInTouchMode(true);
+        public Object s( final bsView $b, final Object $v ){
+	        Boolean v = (Boolean)$v;
+            $b.v.setFocusable(v);
+            if( v ) $b.v.requestFocus();
+            $b.v.setFocusableInTouchMode(v);
+	        return $v;
         }
     } );
     _viewS.put( V_parent, new S(){
         public Object g( final bsView $b ){return $b.v.getParent();}
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             if( $v instanceof String ){
                 String v = (String)$v;
                 if( v.equals(V_ROOT) ) BS.this.contents($b.v);
                 else ((ViewGroup)BS.this.View((String)$v).v).addView($b.v);
             }else if( $v instanceof Integer ) ((ViewGroup)BS.this.View((Integer)$v).v).addView($b.v);
             else if( $v instanceof View ) ((ViewGroup)BS.this.View((View)$v).v).addView($b.v);
+	        return $v;
         }
     } );
-    _viewS.put( V_next, new S(){public void s( final bsView $b, final Object $v ){((Runnable)$v).run();}});
-    _viewS.put( V_adapterView, new S() {
-        public void s( final bsView $b, final Object $v ){
-            $b.p.put( V_adapterView, $v );
-        }
-    });
-    _viewS.put( V_adapter, new S(){
+	_viewS.put( V_children, new S(){
+		public Object g( final bsView $b ){
+			ViewGroup v = (ViewGroup)$b.v;
+			int j = v.getChildCount();
+			View[] t0 = new View[j];
+			for( int i = 0 ; i < j ; i++ ) t0[i] = v.getChildAt(i);
+			return t0;
+		}
+	} );
+    _viewS.put( V_next, new S(){public Object s( final bsView $b, final Object $v ){((Runnable)$v).run();return $v;}});
+        _viewS.put( V_adapter, new S(){
         public Object g( final bsView $b ){return ((AdapterView)$b.v).getAdapter();}
-        public void s( final bsView $b, final Object $v ){
-            AdapterView v = (AdapterView)$b.v;
-            if( $v instanceof Cursor ){
-                Cursor c = (Cursor)$v;
-                String[] t0 = c.getColumnNames();
-                int[] t1 = new int[t0.length];
-                for( int i = 0, j = t1.length ; i < j ; i++ ) t1[i] = Rid(t0[i]);
-                v.setAdapter( new SimpleCursorAdapter( _act, (Integer)$b.p.get(V_adapterView), c, t0, t1, 1 ) );
-            }else v.setAdapter((Adapter)$v);
-        }
+        public Object s( final bsView $b, final Object $v ){((AdapterView)$b.v).setAdapter((Adapter)$v);return $v;}
     } );
         //endregion
         //region Animation
         //region attribute
-    _viewS.put( A_alpha, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_alpha, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().alpha((Float) $v);
         else{
             float[] v = (float[])$v;
             $b.v.setAlpha(v[0]);
             $b.ani().alpha(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_rotation, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_rotation, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().rotation((Float) $v);
         else{
             float[] v = (float[])$v;
             $b.v.setRotation(v[0]);
             $b.ani().rotation(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_rotationX, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_rotationX, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().rotationX((Float) $v);
         else{
             float[] v = (float[])$v;
             $b.v.setRotationX(v[0]);
             $b.ani().rotationX(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_rotationY, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_rotationY, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().rotationY((Float) $v);
         else{
             float[] v = (float[])$v;
             $b.v.setRotationY(v[0]);
             $b.ani().rotationY(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_scaleX, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_scaleX, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().scaleX((Float) $v);
         else{
             float[] v = (float[])$v;
             $b.v.setScaleX(v[0]);
             $b.ani().scaleX(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_scaleY, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_scaleY, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().scaleY((Float)$v);
         else{
             float[] v = (float[])$v;
             $b.v.setScaleY(v[0]);
             $b.ani().scaleY(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_translationX, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_translationX, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().translationX((Float)$v);
         else{
             float[] v = (float[])$v;
             $b.v.setTranslationX(v[0]);
             $b.ani().translationX(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_translationY, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_translationY, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().translationY((Float)$v);
         else{
             float[] v = (float[])$v;
             $b.v.setTranslationY(v[0]);
             $b.ani().translationY(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_x, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_x, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float ) $b.ani().x((Float)$v);
         else{
             float[] v = (float[])$v;
             $b.v.setX(v[0]);
             $b.ani().x(v[1]);
         }
+	    return $v;
     }});
-    _viewS.put( A_y, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_y, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Float[] ){
             float[] v = (float[])$v;
             $b.v.setY(v[0]);
             $b.ani().y(v[1]);
         }else $b.ani().y((Float)$v);
+	    return $v;
     }});
     _viewS.put( A_duration, new S(){
         public Object g( final bsView $b ){return $b.ani().getDuration();}
-        public void s( final bsView $b, final Object $v ){$b.ani().setDuration((Long)$v);}
+        public Object s( final bsView $b, final Object $v ){$b.ani().setDuration((Long)$v);return $v;}
     });
 
     _viewS.put( A_delay, new S(){
         public Object g( final bsView $b ){return $b.ani().getStartDelay();}
-        public void s( final bsView $b, final Object $v ){$b.ani().setStartDelay((Long)$v);}
+        public Object s( final bsView $b, final Object $v ){$b.ani().setStartDelay((Long)$v);return $v;}
     });
     _viewS.put( A_ease, new S(){
         @SuppressLint("NewApi")
         public Object g( final bsView $b ){return $b.ani().getInterpolator();}
-        public void s( final bsView $b, final Object $v ){$b.ani().setInterpolator((TimeInterpolator) $v);}
+        public Object s( final bsView $b, final Object $v ){$b.ani().setInterpolator((TimeInterpolator) $v);return $v;}
     });
         //endregion
         //region event
-    _viewS.put( A_canceled, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_cancelListener, (Runnable)$v );}});
-    _viewS.put( A_repeated, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener(A_repeatListener, (Runnable) $v);}});
+    _viewS.put( A_canceled, new S(){public Object s( final bsView $b, final Object $v ){$b.aniListener( A_cancelListener, (Runnable)$v );return $v;}});
+    _viewS.put( A_repeated, new S(){public Object s( final bsView $b, final Object $v ){$b.aniListener(A_repeatListener, (Runnable) $v);return $v;}});
     if( Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN ){
-        _viewS.put( A_end, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_endListener, (Runnable)$v );}});
-        _viewS.put( A_started, new S(){public void s( final bsView $b, final Object $v ){$b.aniListener( A_startListener, (Runnable)$v );}});
+        _viewS.put( A_end, new S(){public Object s( final bsView $b, final Object $v ){$b.aniListener( A_endListener, (Runnable)$v );return $v;}});
+        _viewS.put( A_started, new S(){public Object s( final bsView $b, final Object $v ){$b.aniListener( A_startListener, (Runnable)$v );return $v;}});
     }else{
         _viewS.put(A_update, new S() {
             @SuppressLint("NewApi")
-            public void s( final bsView $b, final Object $v ){$b.ani().setUpdateListener((ValueAnimator.AnimatorUpdateListener) $v);}
+            public Object s( final bsView $b, final Object $v ){$b.ani().setUpdateListener((ValueAnimator.AnimatorUpdateListener) $v);return $v;}
         });
         _viewS.put(A_end, new S() {
             @SuppressLint("NewApi")
-            public void s( final bsView $b, final Object $v ){$b.ani().withEndAction((Runnable) $v);}
+            public Object s( final bsView $b, final Object $v ){$b.ani().withEndAction((Runnable) $v);return $v;}
         });
         _viewS.put(A_started, new S() {
             @SuppressLint("NewApi")
-            public void s( final bsView $b, final Object $v ){$b.ani().withStartAction((Runnable) $v);}
+            public Object s( final bsView $b, final Object $v ){$b.ani().withStartAction((Runnable) $v);return $v;}
         });
     }
         //endregion
         //region action
-    _viewS.put( A_cancel, new S(){public void s( final bsView $b, final Object $v ){$b.ani().cancel();}});
-    _viewS.put( A_start, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( A_cancel, new S(){public Object s( final bsView $b, final Object $v ){$b.ani().cancel();return $v;}});
+    _viewS.put( A_start, new S(){public Object s( final bsView $b, final Object $v ){
         if( $v instanceof Long[] ){
             Long[] v = (Long[])$v;
             $b.ani().setDuration(v[0]);
             $b.ani(true).setStartDelay(v[1]);
         }else if( $v instanceof Long ) $b.ani().setDuration((Long)$v);
         $b.ani(true).start();
+	    return $v;
     }});
         //endregion
         //endregion
         //region Webview
-    _viewS.put( WV_url, new S(){public void s( final bsView $b, final Object $v ){
+    _viewS.put( WV_url, new S(){public Object s( final bsView $b, final Object $v ){
         WebView v = (WebView)$b.v;
         if( $b.p.containsKey(WV_header) ) v.loadUrl( (String)$v, (Map<String, String>)$b.p.get(WV_header) );
         else v.loadUrl((String)$v);
+	    return $v;
     }});
-    _viewS.put( WV_apiKey, new S(){public void s( final bsView $b, final Object $v ){$b.p.put("apiKey", $v);}});
-    _viewS.put( WV_api, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).addJavascriptInterface($v, $b.p.containsKey("apiKey") ? (String) $b.p.get("apiKey") : "Bs");}});
-    _viewS.put( WV_isJS, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setJavaScriptEnabled((Boolean) $v);}});
+    _viewS.put( WV_apiKey, new S(){public Object s( final bsView $b, final Object $v ){$b.p.put("apiKey", $v);return $v;}});
+    _viewS.put( WV_api, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).addJavascriptInterface($v, $b.p.containsKey("apiKey") ? (String) $b.p.get("apiKey") : "Bs");return $v;}});
+    _viewS.put( WV_isJS, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setJavaScriptEnabled((Boolean) $v);return $v;}});
     _viewS.put( WV_file, new S() {
-        public void s(final bsView $b, final Object $v) {
+        public Object s( final bsView $b, final Object $v ) {
             WebSettings s = ((WebView) $b.v).getSettings();
             Boolean v = (Boolean)$v;
             s.setAllowFileAccess(v);
             if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN ) s.setAllowUniversalAccessFromFileURLs(v);
+	        return $v;
         }
     });
-    _viewS.put( WV_zoom, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setSupportZoom((Boolean) $v);}});
-    _viewS.put( WV_client, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).setWebViewClient($v == null ? _viewWebViewClient : (WebViewClient) $v);}});
-    _viewS.put( WV_chrome, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).setWebChromeClient($v == null ? _viewWebChromeClient : (WebChromeClient) $v);}});
-    _viewS.put( WV_layer, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).setLayerType( (Integer)$v, null );}});
+    _viewS.put( WV_zoom, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setSupportZoom((Boolean) $v);return $v;}});
+    _viewS.put( WV_client, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).setWebViewClient($v == null ? _viewWebViewClient : (WebViewClient) $v);return $v;}});
+    _viewS.put( WV_chrome, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).setWebChromeClient($v == null ? _viewWebChromeClient : (WebChromeClient) $v);return $v;}});
+    _viewS.put( WV_layer, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).setLayerType( (Integer)$v, null );return $v;}});
     if( Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN ){
-        _viewS.put( WV_priority, new S(){public void s( final bsView $b, final Object $v ){((WebView) $b.v).getSettings().setRenderPriority((WebSettings.RenderPriority) $v);}});
-        _viewS.put( WV_cacheSize, new S(){public void s( final bsView $b, final Object $v ){((WebView) $b.v).getSettings().setAppCacheMaxSize((Long) $v);}});
+        _viewS.put( WV_priority, new S(){public Object s( final bsView $b, final Object $v ){((WebView) $b.v).getSettings().setRenderPriority((WebSettings.RenderPriority) $v);return $v;}});
+        _viewS.put( WV_cacheSize, new S(){public Object s( final bsView $b, final Object $v ){((WebView) $b.v).getSettings().setAppCacheMaxSize((Long) $v);return $v;}});
     }
-    _viewS.put( WV_cache, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setAppCacheEnabled((Boolean) $v);}});
-    _viewS.put( WV_cachePath, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setAppCachePath((String)$v);}});
+    _viewS.put( WV_cache, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setAppCacheEnabled((Boolean) $v);return $v;}});
+    _viewS.put( WV_cachePath, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setAppCachePath((String)$v);return $v;}});
     _viewS.put(WV_agent, new S() {
         public Object g( final bsView $b ){return System.getProperty("http.agent");}
-        public void s( final bsView $b, final Object $v ){((WebView) $b.v).getSettings().setUserAgentString((String) $v);}
+        public Object s( final bsView $b, final Object $v ){((WebView) $b.v).getSettings().setUserAgentString((String) $v);return $v;}
     });
-    _viewS.put( WV_encoding, new S(){public void s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setDefaultTextEncodingName((String) $v);}});
+    _viewS.put( WV_encoding, new S(){public Object s( final bsView $b, final Object $v ){((WebView)$b.v).getSettings().setDefaultTextEncodingName((String) $v);return $v;}});
     _viewS.put( WV_header, new S(){
         public Object g( final bsView $b ){return $b.p.get(WV_header);}
-        public void s( final bsView $b, final Object $v ){
+        public Object s( final bsView $b, final Object $v ){
             if( !$b.p.containsKey(WV_header) ) $b.p.put( WV_header, new HashMap<String, String>() );
             ((HashMap<String, String>)$b.p.get(WV_header)).putAll((HashMap<String, String>)$v);
+	        return $v;
         }
     });
         //endregion
         //region TextView
-    _viewS.put( TV_textScaleX, new S(){public void s( final bsView $b, final Object $v ){((TextView)$b.v).setTextScaleX((Float)$v);}});
-    _viewS.put( TV_lineSpacing, new S(){public void s( final bsView $b, final Object $v ){((TextView)$b.v).setLineSpacing( (Float)$v, 1 );}});
+	_viewS.put( TV_text, new S(){
+		public Object g( final bsView $b ){return ((TextView)$b.v).getText();}
+		public Object s( final bsView $b, final Object $v ){((TextView)$b.v).setText( $v instanceof String ? (String)$v : BS.this.Rstring((Integer)$v) );return $v;}
+	});
+    _viewS.put( TV_textScaleX, new S(){public Object s( final bsView $b, final Object $v ){((TextView)$b.v).setTextScaleX((Float)$v);return $v;}});
+
+    _viewS.put( TV_lineSpacing, new S(){public Object s( final bsView $b, final Object $v ){((TextView)$b.v).setLineSpacing( (Float)$v, 1 );return $v;}});
         //endregion
+		//region ImageView
+	_viewS.put( IV_image, new S(){
+		public Object g( final bsView $b ){return ((ImageView)$b.v).getDrawable();}
+		public Object s( final bsView $b, final Object $v ){
+			ImageView v = (ImageView)$b.v;
+			if( $v instanceof Integer ) v.setImageResource((Integer)$v);
+			else if( $v instanceof String ) v.setImageDrawable(Rdrawable((String)$v));
+			else if( $v instanceof Drawable ) v.setImageDrawable((Drawable)$v);
+			return $v;
+		}
+	});
+		//endregion
+		//region CompoundButton
+	_viewS.put( CB_checked, new S(){
+		public Object g( final bsView $b ){return ( ( CompoundButton ) $b.v ).isChecked();}
+		public Object s( final bsView $b, final Object $v ){( ( CompoundButton ) $b.v ).setChecked((Boolean)$v);return $v;}
+	});
+		//endregion
 }
     //endregion
 
 //endregion
-
 
 
 //region Instance
@@ -924,6 +1035,8 @@ private int Rtype( int $id ){
 public View Rlayout( String $id ){return Rlayout(_res.getIdentifier( $id, "layout", _packageName));}
 public View Rlayout( int $id ){return _inflater.inflate( $id, null);}
 public int Rid( String $id ){return _res.getIdentifier( $id, "id", _packageName);}
+public Drawable Rdrawable( String $id ){return Rdrawable(_res.getIdentifier( $id, "drawable", _packageName ));}
+public Drawable Rdrawable( int $id ){return _res.getDrawable($id);}
 public String Rstring( String $id ){
     int i = _res.getIdentifier( $id, "string", _packageName);
     return i == 0 ? "" : Rstring(i);

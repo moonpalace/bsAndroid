@@ -5,28 +5,20 @@
     android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
-    android:paddingBottom="@dimen/activity_vertical_margin"
-    tools:context=".BSProjectActivity">
+    android:paddingBottom="@dimen/activity_vertical_margin">
 
     <Button
-        android:id="@+id/btn"
+        android:id="@+id/back_btn"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="click here"
-        android:layout_alignParentBottom="true"/>
+        android:layout_alignParentBottom="true"
+        android:text="to back"/>
 
-    <TextView
-        android:id="@+id/text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="URL here"
-        android:layout_above="@+id/btn" />
-
-    <ListView
-        android:id="@+id/listview"
+    <WebView
+        android:id="@+id/webview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@+id/text"
-        android:background="#88ff0000"/>
+        android:layout_above="@+id/back_btn"
+        android:color="#88ff0000"/>
 
 </RelativeLayout>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="list_str">
+        <item>Naver</item>
+        <item>Daum</item>
+        <item>Facebook</item>
+        <item>Twitter</item>
+    </string-array>
+
+    <string-array name="url_list">
+        <item>www.naver.com</item>
+        <item>www.daum.net</item>
+        <item>www.facebook.com</item>
+        <item>www.twitter.com</item>
+    </string-array>
+</resources>

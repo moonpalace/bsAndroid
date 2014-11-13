@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="list_str">
-        <item>Test1</item>
-        <item>Test2</item>
-        <item>Test3</item>
-        <item>Test4</item>
+        <item>네이</item>
+        <item>다음</item>
+        <item>페이스북</item>
+        <item>트위터</item>
     </string-array>
 </resources>
